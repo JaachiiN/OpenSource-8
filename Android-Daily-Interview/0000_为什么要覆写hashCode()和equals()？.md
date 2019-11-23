@@ -50,6 +50,7 @@ public static void main(String[] args) {
 	if (employeeFirst == employeeSecond) {
 		System.out.println("employeeFirst == employeeSecond");
 	} else {
+        // 执行下述内容
 		System.out.println("employeeFirst is not equal employeeSecond");
 	}
 	
@@ -57,6 +58,7 @@ public static void main(String[] args) {
 	if(employeeFirst.equals(employeeSecond)){
 		System.out.println("employeeFirst == employeeSecond");
 	} else {
+        // 执行下述内容
 		System.out.println("employeeFirst is not equal employeeSecond");
 	}
 }
@@ -64,14 +66,52 @@ public static void main(String[] args) {
 
 从 `Object` 类来看：
 
-* `hashCode()`：是一个 `native` 方法，通过 `OpenJDK8` 源代码分析，其结果是通过和当前线程有关的一个随机数 + 三个确定值，运用`Marsaglia's xorshift scheme`随机数算法得到的一个随机数。**和对象内存地址无关**。可以看成**和创建的对象实例一一对应的值**。
-* `equals()`：其实现是执行了 `this == obj` 的判断语句。在没有覆写 `hashCode()` 和 `equals()` 的情况下，输出 `employeeFirst` 实例时，打印内容类似：`com.zebra.lang.bean.Employee@15db9742`，最后的十六进制值实际是 `hashCode()` 的结果。**`Object` 中默认的 `equals()` 实际判断的是，两个类型变量引用的是否是同一个对象实例**，该操作是通过引用对象的**内存地址**判断的，**类变量中存放的是堆内存中类实例的地址**。
+* `hashCode()`：是一个 `native` 方法，通过 `OpenJDK8` 源代码分析，其结果是通过和当前线程有关的一个随机数 + 三个确定值，运用 `Marsaglia's xorshift scheme` 随机数算法得到的一个随机数。**和对象内存地址无关**。可以看成**和创建的对象实例一一对应的值**，而这个一一对应的值、和对象相关的值，恰好符合不同对象有不同 `hashCode()` 值的特征，很容易有这样的推论：和对象内存地址相关的值。
+* `==` 操作符：实际是两个对象变量是否引用的是相同的类对象。
+* `equals()`：其实现是执行了 `this == obj` 的判断语句，也就是和 `employeeFirst == employeeSecond` 的执行结果相同。在没有覆写 `hashCode()` 和 `equals()` 的情况下，输出 `employeeFirst` 实例时，打印内容类似：`com.zebra.lang.bean.Employee@15db9742`，最后的十六进制值实际是 `hashCode()` 的结果。**`Object` 中默认的 `equals()` 实际判断的是，两个类型变量引用的是否是同一个对象实例**，该操作是通过引用对象的**内存地址**判断的，**类变量中存放的是堆内存中类实例的地址**。在没有覆写 `equals()` 的情况下，实际执行的是 `==` 运算符！
 
-在没有覆写 `equals()` 的情况下，实际执行的是 `==` 运算符！
+通过覆写 `hashCode()` 和 `equals()` 方法实现对象的自定义比较：
+
+~~~java
+@Override
+public boolean equals(Object object) {
+	if (this == object) {
+		// 两个变量引用的是同一个对象实例
+		System.out.println("是同一个对象（内存地址相同）");
+		return true;
+	}
+
+	if (object == null) {
+		// 当然 this 当前调用方法的实例不可能为 null
+		return false;
+	}
+
+	if (getClass() != object.getClass()) {
+		return false;
+	}
+
+	Employee employee = (Employee) object;
+	// 根据对象的属性进行比较
+	return Objects.equals(name, employee.name) && salary == employee.salary
+			&& Objects.equals(hireDay, employee.hireDay);
+}
+
+@Override
+public int hashCode() {
+	// 实现了根据创建对象时的属性生成 hashCode 值
+	return Objects.hash(name, salary, hireDay);
+}
+
+@Override
+public String toString() {
+	return this.getClass().getSimpleName() + "[name=" + name + ", salary=" + salary
+			+ ", hireDay=" + hireDay + "]";
+}
+~~~
 
 **下面从 `HashMap` 的存数规则来看自定义类中 `hashCode()` 和 `equals()` 的用途。**
 
-首先来体会使用 `HashMap` 存对象的高效性：在一个长度为 `N` 的线性表中，存放无序的数字；如果我们要找一个指定的数字，就不得不通过从头到尾依次遍历来查找，这样的平均查找次数是 `N/2`。那如果是使用 `Hash` 表，其平均查找次数接近 1，代价相当小。其关键是在 `Hash` 表中，存放在其中的数据和其存储位置是 `Hash` 函数相关的。
+首先来体会使用 `HashMap` 存对象的高效性：在一个长度为 `N` 的线性表中，存放无序的数字；如果我们要找一个指定的数字，就不得不通过从头到尾依次遍历来查找，这样的平均查找次数是 `N/2`。那如果是使用 `Hash` 表，其平均查找次数接近 1，代价相当小。其关键是在 `Hash` 表中，存放在其中的数据和其存储位置是 `Hash` 函数相关的（**也就是直接根据对象的 `HashCode` 值，计算出对应存放的位置索引号**）。
 
 我们假设一个 `Hash` 函数是 `x * x % 5`。当然实际情况里不可能用这么简单的 `Hash` 函数，我们这里纯粹为了说明方便，而 `Hash` 表是一个长度是 11 的线性表。如果我们要把 6 放入其中，那么我们首先会对 6 用 `Hash` 函数计算一下，结果是 1（其值放入到索引号是 1 这个位置）。同样如果我们要放数字 7，经过 `Hash` 函数计算，其结果是4（其值将被放入索引是 4 的这个位置）。
 
@@ -83,9 +123,9 @@ public static void main(String[] args) {
 
 具体的做法是，为所有 `Hash` 值是 `i` 的对象建立一个**同义词链表**。假设我们在放入 8 的时候，发现 4 号位置已经被占，那么就会**新建一个链表结点**放入8。同样，如果我们要找8，那么发现4号索引里不是8，那会沿着链表依次查找。
 
-虽然我们还是无法彻底避免 `Hash` 值冲突的问题，但是 `Hash` 函数设计合理，仍能保证同义词链表的长度被控制在一个合理的范围里。
+虽然我们还是无法彻底避免 `Hash` 值冲突的问题，但是 `Hash` 函数设计合理，仍能保证**同义词链表**的长度被控制在一个合理的范围里。
 
-那我们现在来解决为什么要覆写 `hashCode()` 和 `equals()` 的问题！
+那我们现在来解决**为什么要覆写 `hashCode()` 和 `equals()` 的问题！**
 
 现在软件工程师自定义了 `Key` 类，包含唯一的域 `id`：
 
@@ -100,16 +140,14 @@ public class Test {
 		Key keyFirst = new Key(1);
 		Key keySecond = new Key(1);
 
-        // hashCode:1
 		System.out.println(keyFirst);
-        // hashCode:1
 		System.out.println(keySecond);
         
         // false
 		if (keyFirst == keySecond) {
 			System.out.println("keyFirst's hashCode is equal keySecond!");
 		}
-
+		// false
 		if (keyFirst.equals(keySecond)) {
 			System.out.println("keyFirst's hashCode is equal keySecond!");
 		}
@@ -118,7 +156,7 @@ public class Test {
         // 调用了 Key 的 hashCode()
 		hashMap.put(keyFirst, "Key with id is 1");
 
-        // 调用了 Key 的 hashCode() 和 equals()
+        // 调用了 Key 的 hashCode() 和 equals()，执行结果 null
 		System.out.println(hashMap.get(keySecond));
 	}
 
@@ -200,9 +238,9 @@ final Node<K, V> getNode(int hash, Object key) {
 }
 ~~~
 
-能够从 `HashMap` 中取到 `value` 值，需要进行类似 `((k = first.key) == key || (key != null && key.equals(k)))` 或者是 `((k = e.key) == key || (key != null && key.equals(k)))` 的判断（或者应该是存在同义词链表的情况）。**首先判断的是 `hashCode()` 的结果，如果相同，再去判断 `equals()`。当然，如果 `hashCode` 值不相等，则直接返回，不再去判断 `equals()`。**
+能够从 `HashMap` 中取到 `value` 值，需要进行类似 `first.hash == hash && ((k = first.key) == key || (key != null && key.equals(k)))` 或者是 `((k = e.key) == key || (key != null && key.equals(k)))` 的判断（或者应该是存在同义词链表的情况）。**首先判断的是 `hashCode()` 的结果，如果相同，再去判断 `equals()`。当然，如果 `hashCode` 值不相等，则直接返回，不再去判断 `equals()`。**
 
-特别的，`key.equals(k)` 实际就是调用了覆写的 `equals()`。上述判断一旦返回 `true`，就可以从 `HashMap` 中取到 `value`。
+特别的，`key.equals(k)` 实际就是调用了覆写的 `equals()`。上述判断一旦返回 `true`，就可以从 `HashMap` 中取到 `value`。那从 `HashMap` 的使用过程，特别是 `hashmap.get(Object key)` 的源代码分析中可以看出：从 `HashMap` 中获取、检索元素时，需要调用 `Key` 对象的 `hashCode()` 和 `equals()`，这也就是我们需要覆写上述方法的原因。
 
 下面来看一个思考题：
 
@@ -275,4 +313,4 @@ public class Test {
 
 ![](./pics/Snipaste_2019-07-09_17-22-44.png)
 
-`HashMap` 使用了【同义词链表结构】，也就是：当 `hashCode()` 返回相同结果时，在桶内存放位置相同，但是`key`不是一样的，需要在 `next` 域存放另一个节点内容。
+`HashMap` 使用了【同义词链表结构】，也就是：当 `hashCode()` 返回相同结果时，在桶内存放位置相同，但是`key`不是一样的，需要在 `next` 域存放另一个节点内容。在使用同义词链表结果时，后存放的结点放置到 `next` 域中。
